@@ -4,13 +4,22 @@ import os
 import yt_dlp
 import tempfile
 import shutil
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+class ConvertRequest:
+    youtube_url: str
 
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
     Downloads a YouTube video's audio as MP3 and returns the file path.
     """
+    logger.info(f"Downloading audio from URL: {youtube_url}")
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
@@ -29,7 +38,7 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
                     return os.path.join(output_dir, file)
             return None
     except Exception as e:
-        print(f"Error downloading video: {str(e)}")
+        logger.error(f"Error downloading video: {str(e)}")
         return None
 
 @app.post("/convert")
@@ -56,6 +65,7 @@ async def convert(data: dict, background_tasks: BackgroundTasks):
         )
     except Exception as e:
         shutil.rmtree(temp_dir, ignore_errors=True)
+        logger.error(f"Conversion error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Conversion error: {str(e)}")
 
 if __name__ == "__main__":
