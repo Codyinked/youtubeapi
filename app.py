@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import yt_dlp
 import tempfile
@@ -10,7 +11,17 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Initialize FastAPI app
 app = FastAPI()
+
+# Add CORS middleware to allow all origins (adjust for production if needed)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins (e.g., Postman, browsers); restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
@@ -42,10 +53,15 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
 async def convert(data: dict, background_tasks: BackgroundTasks):
     """
     API endpoint to convert a YouTube video to MP3.
+    Accepts a JSON payload with 'youtube_url' and returns the MP3 file.
     """
     youtube_url = data.get("youtube_url")
     if not youtube_url:
         raise HTTPException(status_code=400, detail="No YouTube URL provided")
+
+    # Validate YouTube URL (basic check)
+    if not youtube_url.startswith("https://www.youtube.com/watch?v="):
+        raise HTTPException(status_code=400, detail="Invalid YouTube URL format")
 
     temp_dir = tempfile.mkdtemp()
     try:
@@ -55,6 +71,7 @@ async def convert(data: dict, background_tasks: BackgroundTasks):
 
         background_tasks.add_task(shutil.rmtree, temp_dir)
 
+        logger.info(f"Successfully converted URL to MP3: {os.path.basename(mp3_file)}")
         return FileResponse(
             path=mp3_file,
             filename=os.path.basename(mp3_file),
