@@ -12,9 +12,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-class ConvertRequest:
-    youtube_url: str
-
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
     Downloads a YouTube video's audio as MP3 and returns the file path.
