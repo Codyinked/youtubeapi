@@ -6,6 +6,7 @@ import yt_dlp
 import tempfile
 import shutil
 import logging
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,11 +24,29 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+def load_youtube_cookies():
+    """
+    Load YouTube cookies from a JSON file or return None if not available.
+    You need to generate and save cookies using yt-dlp's cookie extraction tools.
+    """
+    try:
+        # Path to cookies file (you'll create this manually or via script)
+        cookies_file = "youtube_cookies.json"
+        if os.path.exists(cookies_file):
+            with open(cookies_file, "r") as f:
+                return json.load(f)
+        return None
+    except Exception as e:
+        logger.error(f"Error loading cookies: {str(e)}")
+        return None
+
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
-    Downloads a YouTube video's audio as MP3 and returns the file path.
+    Downloads a YouTube video's audio as MP3 using cookies if required.
     """
     logger.info(f"Downloading audio from URL: {youtube_url}")
+    cookies = load_youtube_cookies()
+    
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
@@ -36,6 +55,7 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
             "preferredcodec": "mp3",
             "preferredquality": "192",
         }],
+        "cookiefile": "youtube_cookies.txt" if cookies else None,  # Use cookie file if available
     }
 
     try:
