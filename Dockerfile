@@ -1,6 +1,13 @@
 # Use an official Python image
 FROM python:3.11-slim
 
+# Install ffmpeg and necessary dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set working directory
 WORKDIR /app
 
@@ -19,4 +26,4 @@ COPY . .
 EXPOSE 8080
 
 # Start the app
-CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["/usr/local/bin/python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
