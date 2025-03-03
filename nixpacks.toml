@@ -4,7 +4,8 @@ nixPkgs = ["python311", "python311Packages.pip", "ffmpeg-full"]
 [phases.install]
 cmds = [
     "python -m pip install --upgrade pip",
-    "python -m pip install --no-cache-dir -r requirements.txt"
+    "python -m pip install --no-cache-dir -r requirements.txt",
+    "export PATH=/root/.nix-profile/bin:$PATH"  # Ensure ffmpeg is in PATH
 ]
 
 [phases.start]
