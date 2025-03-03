@@ -3,6 +3,7 @@ nixPkgs = ["python311", "ffmpeg"]
 
 [phases.install]
 cmds = [
-  "python -m pip install --upgrade pip",
-  "python -m pip install --no-cache-dir -r requirements.txt"
+  "python -m ensurepip --upgrade || true",  # Try to ensure pip, ignore failure
+  "python -m pip install --upgrade pip",    # Explicitly upgrade pip
+  "python -m pip install --no-cache-dir -r requirements.txt"  # Install dependencies
 ]
