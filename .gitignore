@@ -2,3 +2,5 @@
 "*.pyc" 
 "*.mp3" 
 "downloads/" 
+youtube_cookies.json
+youtube_cookies.txt
