@@ -1,0 +1,8 @@
+[
+  {
+    "name": "YOUR_COOKIE_NAME",
+    "value": "YOUR_COOKIE_VALUE",
+    "domain": ".youtube.com",
+    "path": "/"
+  }
+]
