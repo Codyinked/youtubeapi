@@ -26,11 +26,16 @@ app.add_middleware(
 
 def load_youtube_cookies():
     """
-    Load YouTube cookies from a JSON file or return None if not available.
-    You need to generate and save cookies using yt-dlp's cookie extraction tools.
+    Load YouTube cookies from an environment variable or a local file (if present).
+    The environment variable YOUTUBE_COOKIES_JSON takes precedence for security.
     """
     try:
-        # Path to cookies file (you'll create this manually or via script)
+        # Try to load cookies from environment variable (secure for Railway)
+        cookies_json = os.getenv("YOUTUBE_COOKIES_JSON")
+        if cookies_json:
+            return json.loads(cookies_json)
+        
+        # Fallback: Load from local file (for local testing only)
         cookies_file = "youtube_cookies.json"
         if os.path.exists(cookies_file):
             with open(cookies_file, "r") as f:
@@ -47,6 +52,11 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     logger.info(f"Downloading audio from URL: {youtube_url}")
     cookies = load_youtube_cookies()
     
+    # Normalize YouTube URL to remove ?si= or other parameters if needed
+    if "?si=" in youtube_url:
+        youtube_url = youtube_url.split("?si=")[0]  # Keep only the base URL
+        logger.info(f"Normalized URL to: {youtube_url}")
+
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
@@ -80,7 +90,7 @@ async def convert(data: dict, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="No YouTube URL provided")
 
     # Validate YouTube URL (basic check)
-    if not youtube_url.startswith("https://www.youtube.com/watch?v="):
+    if not youtube_url.startswith("https://www.youtube.com/watch?v=") and not youtube_url.startswith("https://youtu.be/"):
         raise HTTPException(status_code=400, detail="Invalid YouTube URL format")
 
     temp_dir = tempfile.mkdtemp()
