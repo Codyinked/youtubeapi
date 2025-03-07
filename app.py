@@ -63,9 +63,8 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
-            "preferredquality": "64",
+            "preferredquality": "194",
         }],
-        'max_filesize': 24 * 1024 * 1024,  # 24 MB max, clearly ensures Whisper compatibility
         "cookiefile": "youtube_cookies.txt" if cookies else None,  # Use cookie file if available
     }
 
