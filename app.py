@@ -94,13 +94,15 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
         logger.info(f"Normalized URL to: {youtube_url}")
 
     ydl_opts = {
-        "format": "bestaudio/best",
-        "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
-        "source_address": "0.0.0.0",
-        "oauth_token": credentials.token,
-        "oauth_headers": {"Authorization": f"Bearer {credentials.token}"}
-    }
+    "format": "bestaudio/best",
+    "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
+    "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
+    "source_address": "0.0.0.0",
+    "nocheckcertificate": True,  # Avoid SSL certificate issues
+    "cookiesfrombrowser": None,  # Ensures OAuth is used instead of cookies
+    "oauth_token": credentials.token,  # ✅ Force yt-dlp to use OAuth token
+    "oauth_headers": {"Authorization": f"Bearer {credentials.token}"},  # ✅ Add OAuth headers for auth
+}
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
