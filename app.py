@@ -1,5 +1,5 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import yt_dlp
@@ -7,6 +7,10 @@ import tempfile
 import shutil
 import logging
 import json
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+import google.auth.transport.requests
+from google.oauth2.credentials import Credentials
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,46 +19,71 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI()
 
-# Add CORS middleware to allow all origins (adjust for production if needed)
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (e.g., Postman, browsers); restrict in production
+    allow_origins=["*"],  # Allows all origins (for dev, restrict in production)
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_methods=["*"],  # Allows all HTTP methods
     allow_headers=["*"],  # Allows all headers
 )
 
-def load_youtube_cookies():
-    """
-    Load YouTube cookies from an environment variable or a local file (if present).
-    The environment variable YOUTUBE_COOKIES_JSON takes precedence for security.
-    """
-    try:
-        # Try to load cookies from environment variable (secure for Railway)
-        cookies_json = os.getenv("YOUTUBE_COOKIES_JSON")
-        if cookies_json:
-            return json.loads(cookies_json)
-        
-        # Fallback: Load from local file (for local testing only)
-        cookies_file = "youtube_cookies.json"
-        if os.path.exists(cookies_file):
-            with open(cookies_file, "r") as f:
-                return json.load(f)
-        return None
-    except Exception as e:
-        logger.error(f"Error loading cookies: {str(e)}")
-        return None
+# OAuth Config
+CLIENT_SECRETS_FILE = "client_secret.json"  # Download this from Google Developer Console
+SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
+REDIRECT_URI = "https://yourapp.com/oauth2callback"  # Replace with your actual redirect URL
+
+# Store OAuth Tokens
+TOKEN_FILE = "token.json"
+
+def load_oauth_credentials():
+    """Load stored OAuth credentials or None if not available."""
+    if os.path.exists(TOKEN_FILE):
+        return Credentials.from_authorized_user_file(TOKEN_FILE)
+    return None
+
+def save_oauth_credentials(credentials):
+    """Save OAuth credentials to a file for reuse."""
+    with open(TOKEN_FILE, "w") as token_file:
+        token_file.write(credentials.to_json())
+
+@app.get("/login")
+async def oauth_login():
+    """Redirect user to Google OAuth 2.0 login for YouTube API access."""
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE,
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+    auth_url, _ = flow.authorization_url(prompt='consent')
+    return RedirectResponse(auth_url)
+
+@app.get('/oauth2callback')
+async def oauth2callback(request: Request):
+    """Handle Google OAuth 2.0 callback and save credentials."""
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE,
+        scopes=SCOPES,
+        redirect_uri=REDIRECT_URI
+    )
+    flow.fetch_token(authorization_response=str(request.url))
+    credentials = flow.credentials
+    save_oauth_credentials(credentials)
+    return {"message": "OAuth authentication successful! You can now download YouTube audio."}
 
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
-    Downloads a YouTube video's audio as MP3 using cookies if required.
+    Downloads a YouTube video's audio as MP3 using OAuth.
     """
     logger.info(f"Downloading audio from URL: {youtube_url}")
-    cookies = load_youtube_cookies()
+    credentials = load_oauth_credentials()
     
-    # Normalize YouTube URL to remove ?si= or other parameters if needed
+    if not credentials:
+        raise HTTPException(status_code=401, detail="OAuth credentials not found. Please authenticate.")
+
+    # Normalize YouTube URL
     if "?si=" in youtube_url:
-        youtube_url = youtube_url.split("?si=")[0]  # Keep only the base URL
+        youtube_url = youtube_url.split("?si=")[0]
         logger.info(f"Normalized URL to: {youtube_url}")
 
     ydl_opts = {
@@ -63,9 +92,13 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
         "postprocessors": [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
-            "preferredquality": "194",
+            "preferredquality": "192",
         }],
-        "cookiefile": "youtube_cookies.txt" if cookies else None,  # Use cookie file if available
+        "source_address": "0.0.0.0",
+        "oauth": True,
+        "oauth_client_id": credentials.client_id,
+        "oauth_client_secret": credentials.client_secret,
+        "oauth_token": credentials.token,
     }
 
     try:
@@ -115,3 +148,4 @@ async def convert(data: dict, background_tasks: BackgroundTasks):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)
+
