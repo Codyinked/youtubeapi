@@ -31,7 +31,7 @@ app.add_middleware(
 # OAuth Config
 CLIENT_SECRETS_FILE = "client_secret.json"  # Download this from Google Developer Console
 SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
-REDIRECT_URI = "https://yourapp.com/oauth2callback"  # Replace with your actual redirect URL
+REDIRECT_URI = "https://youtubeapi-production-0740.up.railway.app/oauth2callback"  # Replace with your actual redirect URL
 
 # Store OAuth Tokens
 TOKEN_FILE = "token.json"
