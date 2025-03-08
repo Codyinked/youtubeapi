@@ -12,6 +12,9 @@ from googleapiclient.discovery import build
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 
+# 🔹 Allow OAuth without HTTPS (for local testing)
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,9 +32,9 @@ app.add_middleware(
 )
 
 # OAuth Config
-CLIENT_SECRETS_FILE = "client_secret.json"  # Download this from Google Developer Console
+CLIENT_SECRETS_FILE = "client_secret.json"  # Ensure this exists on Railway
 SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
-REDIRECT_URI = "https://youtubeapi-production-0740.up.railway.app/oauth2callback"  # Replace with your actual redirect URL
+REDIRECT_URI = "https://youtubeapi-production-0740.up.railway.app/oauth2callback"
 
 # Store OAuth Tokens
 TOKEN_FILE = "token.json"
@@ -61,15 +64,19 @@ async def oauth_login():
 @app.get('/oauth2callback')
 async def oauth2callback(request: Request):
     """Handle Google OAuth 2.0 callback and save credentials."""
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    flow.fetch_token(authorization_response=str(request.url))
-    credentials = flow.credentials
-    save_oauth_credentials(credentials)
-    return {"message": "OAuth authentication successful! You can now download YouTube audio."}
+    try:
+        flow = Flow.from_client_secrets_file(
+            CLIENT_SECRETS_FILE,
+            scopes=SCOPES,
+            redirect_uri=REDIRECT_URI
+        )
+        flow.fetch_token(authorization_response=str(request.url))
+        credentials = flow.credentials
+        save_oauth_credentials(credentials)
+        return {"message": "OAuth authentication successful! You can now download YouTube audio."}
+    except Exception as e:
+        logger.error(f"OAuth Callback Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OAuth Callback Error: {str(e)}")
 
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
@@ -89,16 +96,10 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     ydl_opts = {
         "format": "bestaudio/best",
         "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "192",
-        }],
+        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
         "source_address": "0.0.0.0",
-        "oauth": True,
-        "oauth_client_id": credentials.client_id,
-        "oauth_client_secret": credentials.client_secret,
         "oauth_token": credentials.token,
+        "oauth_headers": {"Authorization": f"Bearer {credentials.token}"}
     }
 
     try:
@@ -114,17 +115,10 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
 
 @app.post("/convert")
 async def convert(data: dict, background_tasks: BackgroundTasks):
-    """
-    API endpoint to convert a YouTube video to MP3.
-    Accepts a JSON payload with 'youtube_url' and returns the MP3 file.
-    """
+    """API endpoint to convert a YouTube video to MP3."""
     youtube_url = data.get("youtube_url")
     if not youtube_url:
         raise HTTPException(status_code=400, detail="No YouTube URL provided")
-
-    # Validate YouTube URL (basic check)
-    if not youtube_url.startswith("https://www.youtube.com/watch?v=") and not youtube_url.startswith("https://youtu.be/"):
-        raise HTTPException(status_code=400, detail="Invalid YouTube URL format")
 
     temp_dir = tempfile.mkdtemp()
     try:
@@ -133,13 +127,7 @@ async def convert(data: dict, background_tasks: BackgroundTasks):
             raise HTTPException(status_code=500, detail="Failed to download and convert video")
 
         background_tasks.add_task(shutil.rmtree, temp_dir)
-
-        logger.info(f"Successfully converted URL to MP3: {os.path.basename(mp3_file)}")
-        return FileResponse(
-            path=mp3_file,
-            filename=os.path.basename(mp3_file),
-            media_type="audio/mpeg"
-        )
+        return FileResponse(path=mp3_file, filename=os.path.basename(mp3_file), media_type="audio/mpeg")
     except Exception as e:
         shutil.rmtree(temp_dir, ignore_errors=True)
         logger.error(f"Conversion error: {str(e)}")
@@ -148,4 +136,5 @@ async def convert(data: dict, background_tasks: BackgroundTasks):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8080)
+
 
