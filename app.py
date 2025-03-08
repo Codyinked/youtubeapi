@@ -47,8 +47,13 @@ def load_oauth_credentials():
 
 def save_oauth_credentials(credentials):
     """Save OAuth credentials to a file for reuse."""
-    with open(TOKEN_FILE, "w") as token_file:
-        token_file.write(credentials.to_json())
+    try:
+        with open(TOKEN_FILE, "w") as token_file:
+            token_file.write(credentials.to_json())
+        logger.info("✅ OAuth credentials successfully saved!")
+    except Exception as e:
+        logger.error(f"❌ Failed to save OAuth credentials: {str(e)}")
+
 
 @app.get("/login")
 async def oauth_login():
