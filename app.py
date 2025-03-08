@@ -93,17 +93,19 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
         youtube_url = youtube_url.split("?si=")[0]
         logger.info(f"Normalized URL to: {youtube_url}")
 
-    ydl_opts = {
-    "format": "bestaudio/best",
-    "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
-    "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
-    "source_address": "0.0.0.0",
-    "nocheckcertificate": True,  # Avoid SSL certificate issues
-    "cookiesfrombrowser": None,  # Ensures OAuth is used instead of cookies
-    "oauth_token": credentials.token,  # ✅ Force yt-dlp to use OAuth token
-    "oauth_headers": {"Authorization": f"Bearer {credentials.token}"},  # ✅ Add OAuth headers for auth
-}
-
+     ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": os.path.join(output_dir, "%(title)s.%(ext)s"),
+        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
+        "source_address": "0.0.0.0",
+        "nocheckcertificate": True,  # Avoid SSL certificate issues
+        "cookiesfrombrowser": None,  # Ensure yt-dlp does NOT use cookies
+        "force_generic_extractor": True,  # ✅ Forces OAuth for authentication
+        "usenetrc": False,  # ✅ Ensures it does NOT fallback to local auth
+        "username": None,  # ✅ Remove any username-based auth
+        "oauth_token": credentials.token,  # ✅ Force OAuth for yt-dlp
+        "oauth_headers": {"Authorization": f"Bearer {credentials.token}"},  # ✅ Required OAuth headers
+    }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(youtube_url, download=True)
