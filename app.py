@@ -77,11 +77,18 @@ async def oauth2callback(request: Request):
         )
         flow.fetch_token(authorization_response=str(request.url))
         credentials = flow.credentials
+
+        # ✅ Print credentials to logs
+        logger.info(f"✅ OAuth Credentials: {credentials.to_json()}")
+
+        # ✅ Save credentials
         save_oauth_credentials(credentials)
+        
         return {"message": "OAuth authentication successful! You can now download YouTube audio."}
     except Exception as e:
         logger.error(f"OAuth Callback Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"OAuth Callback Error: {str(e)}")
+
 
 def download_youtube_audio(youtube_url: str, output_dir: str) -> str | None:
     """
